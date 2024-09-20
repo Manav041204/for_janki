@@ -1,0 +1,38 @@
+const handleAddPet = async (e) => {
+  e.preventDefault();
+  
+  // Disable the submit button to prevent double submission
+  e.target.querySelector('button[type="submit"]').disabled = true;
+
+  try {
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+      throw new Error("No access token found");
+    }
+
+    const response = await axios.post(
+      "http://localhost:8000/api/pets/",
+      {
+        ...formData,
+        resident: resident ? resident.id : null,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    console.log("Pet added:", response.data);
+
+    // Close the modal upon successful addition
+    document.getElementById("pet-modal").classList.add("hidden");
+  } catch (error) {
+    console.error("There was an error adding the pet:", error);
+    alert("Failed to add pet. Please check your credentials and try again.");
+  } finally {
+    // Enable the submit button after the request is complete
+    e.target.querySelector('button[type="submit"]').disabled = false;
+  }
+};
