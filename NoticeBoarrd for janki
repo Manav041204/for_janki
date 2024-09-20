@@ -1,0 +1,267 @@
+import React, { useEffect, useState } from "react";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
+import Navbar from "./Navbar";
+import Footer from "./Footer";
+
+const Noticeboard = () => {
+  const [notices, setNotices] = useState([]);
+  const [error, setError] = useState(null);
+  const [formData, setFormData] = useState({ title: "", content: "" }); // Single state for both title and content
+  const [loading, setLoading] = useState(true);
+  const [success, setSuccess] = useState(null);
+  const [newNoticeAdded, setNewNoticeAdded] = useState(false);
+  const [resident, setResident] = useState(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchResident = async () => {
+      try {
+        const token = localStorage.getItem("access_token");
+        if (!token) {
+          throw new Error("No access token found");
+        }
+
+        const response = await axios.get("http://localhost:8000/api/getUser", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        setResident(response.data); // Set resident data
+      } catch (err) {
+        setError(err.message);
+      }
+    };
+
+    fetchResident();
+  }, []);
+
+  useEffect(() => {
+    const fetchNotices = async () => {
+      try {
+        const token = localStorage.getItem("access_token");
+        if (!token) throw new Error("No access token found");
+
+        const response = await axios.get("http://localhost:8000/api/notices/", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setNotices(response.data);
+      } catch (error) {
+        setError("Failed to fetch notices.");
+      }
+    };
+
+    fetchNotices();
+  }, [resident ,newNoticeAdded]);
+
+  const handleAddNotice = async (e) => {
+    e.preventDefault();
+    e.target.querySelector('button[type="submit"]').disabled = true;
+    try {
+      const token = localStorage.getItem("access_token");
+      if (!token) throw new Error("No access token found");
+
+      const response = await axios.post(
+        "http://localhost:8000/api/notices/create/",
+        {
+          title: formData.title,
+          content: formData.content,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      setSuccess("Notice added successfully!");
+      setFormData({ title: "", content: "" }); // Reset form data after submission
+      document.getElementById("notice-modal").classList.add("hidden");
+      setNewNoticeAdded((prev) => !prev);
+    } catch (error) {
+      setError("Failed to add notice. Make sure you are a committee member.");
+    } finally {
+      e.target.querySelector('button[type="submit"]').disabled = false;
+    }
+  };
+
+  const handleRemoveNotice = async (id) => {
+    try {
+      const token = localStorage.getItem("access_token");
+      if (!token) throw new Error("No access token found");
+
+      await axios.delete(`http://localhost:8000/api/notices/${id}/delete/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      setNotices(notices.filter((notice) => notice.id !== id));
+      setSuccess("Notice deleted successfully!");
+    } catch (error) {
+      setError("Failed to delete notice.");
+    }
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prevData) => ({
+      ...prevData,
+      [name]: value,
+    }));
+  };
+
+  if (!resident) {
+    return <div>Loading...</div>;
+  }
+
+  return (
+    <div>
+      <div className="min-h-screen bg-[#E9F1FA] p-28">
+        <Navbar />
+        <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="p-6">
+            <h2 className="text-3xl font-bold mb-6 text-[#1c5b70]">
+              {resident.is_committee && (
+                <button
+                  onClick={() =>
+                    document
+                      .getElementById("notice-modal")
+                      .classList.remove("hidden")
+                  }
+                  className="p-2 ml-96 rounded-full bg-[#1c5b70] text-white hover:bg-[#154456] transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-[#1c5b70] focus:ring-opacity-50"
+                  aria-label="Add Notices"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-6 w-6"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4v16m8-8H4"
+                    />
+                  </svg>
+                </button>
+              )}
+            </h2>
+            {notices.length > 0 ? (
+              <ul className="space-y-4 mb-8">
+                {notices.map((notice) => (
+                  <li
+                    key={notice.id}
+                    className="flex items-center justify-between bg-gray-100 p-4 rounded-md"
+                  >
+                    <span className="text-xl font-semibold text-gray-800">
+                      <strong>{notice.title}</strong> - {notice.content}
+                    </span>
+                    {resident.is_committee && (
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleRemoveNotice(notice.id)}
+                          className="p-2 rounded-full bg-[#1c5b70] text-white hover:bg-blue-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+                          aria-label="Remove notices"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-6 w-6"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M20 12H4"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>No notices found. </p>
+            )}
+          </div>
+        </div>
+      </div>
+      <Footer />
+      {/* Modal */}
+      {resident.is_committee && (
+        <div
+          id="notice-modal"
+          className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden flex justify-center items-center"
+        >
+          <div className="relative p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg leading-6 font-medium text-gray-900 text-center mb-4">
+                Add New Notice
+              </h3>
+              <form onSubmit={handleAddNotice} className="space-y-4">
+                <div>
+                  <label
+                    htmlFor="title"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Title:
+                  </label>
+                  <input
+                    type="text"
+                    id="title"
+                    name="title"
+                    value={formData.title}
+                    onChange={handleInputChange}
+                    required
+                    className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#1c5b70] focus:border-[#1c5b70]"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="content"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Content:
+                  </label>
+                  <input
+                    type="text"
+                    id="content"
+                    name="content"
+                    value={formData.content}
+                    onChange={handleInputChange}
+                    required
+                    className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#1c5b70] focus:border-[#1c5b70]"
+                  />
+                </div>
+                <div className="flex justify-between mt-6">
+                  <button
+                    type="submit"
+                    className="w-24 justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-[#1c5b70] text-base font-medium text-white hover:bg-blue-700"
+                  >
+                    Add
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      document
+                        .getElementById("notice-modal")
+                        .classList.add("hidden")
+                    }
+                    className="w-24 justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-gray-300 text-base font-medium text-black hover:bg-gray-400"
+                  >
+                    Close
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Noticeboard;
